@@ -1,6 +1,6 @@
 # Fusion 360 Container Grid Add-In
 
-![Fusion 360 add-on preview](add-on.png)
+Fusion 360 add-on preview
 
 This add-in creates an open-top container centered on the origin with a bottom, parameterized wall thickness, compartment grid dividers, and internal fillets.
 
@@ -16,12 +16,6 @@ This add-in creates an open-top container centered on the origin with a bottom, 
 - Vertical edge fillet: one control for all compartment vertical edges (`3 mm` default)
 
 The default `Length`, `Height`, and `Depth` values are sized for the apothecary drawers from this cabinet: [Amazon apothecary cabinet](https://amzn.to/4lQDurP).
-
-## Reference Images
-
-![Apothecary cabinet](apothecary-drawers.jpg)
-
-![Drawers with printed inserts](drawers.jpeg)
 
 ## Orientation
 
@@ -105,43 +99,9 @@ You now have an `.stl` file ready for slicing.
 
 If your box appears too large or too small in Bambu Studio, re-export from Fusion and confirm mesh **Units = Millimeter**.
 
-## Parameters and Interfaces
+## Reference Image
 
-The add-in keeps a single source of truth through Fusion user parameters:
-
-- `containerLength`
-- `containerHeight`
-- `containerDepth`
-- `wallThickness`
-- `rows`
-- `cols`
-- `bottomEdgeFilletWest`
-- `bottomEdgeFilletEast`
-- `bottomEdgeFilletSouth`
-- `bottomEdgeFilletNorth`
-- `verticalCompartmentEdgeFillet`
-
-Command inputs feed these parameters each run, so geometry generation and future updates rely on consistent named values.
-
-## Internal Design Guide
-
-- DRY: avoid duplicate geometry/math logic by centralizing calculations in helper functions.
-- Single source of truth: all shared dimensions and behavior are parameter-backed.
-- Open/closed: extend behavior through new helpers (new divider patterns, features) instead of rewriting core builders.
-- Favor composition: build flow from focused functions (`ensure_parameters`, shell creation, divider creation, edge selection, filleting).
-- Minimize side effects: isolate Fusion API mutations to build/apply functions; keep calculations pure where possible.
-
-## Architecture Notes
-
-Generation pipeline:
-
-1. Validate command input.
-2. Upsert user parameters.
-3. Build outer solid and shell from top to create open-top container.
-4. Build divider walls from interior bottom face.
-5. Collect all bottom-edge segments for each compartment side and group by radius.
-6. Apply grouped bottom-edge fillets only (N/S/E/W).
-7. Apply a shared vertical-edge fillet across all compartment wall vertical edges.
+![Drawers with printed inserts](drawers-reference.png)
 
 ## Changelog
 
