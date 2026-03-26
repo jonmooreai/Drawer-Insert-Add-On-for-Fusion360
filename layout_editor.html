@@ -29,7 +29,7 @@
     <button id="cancelBtn">Cancel</button>
   </div>
 
-  <div class="hint">Click a compartment, then split it vertically or horizontally. Fillet values are set in the main command dialog.</div>
+  <div class="hint">Click a compartment, then split it vertically or horizontally. North is shown at the top of this view. Fillet values are set in the main command dialog.</div>
 
   <script>
     const canvas = document.getElementById('canvas');
@@ -57,7 +57,7 @@
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       for (const leaf of leaves) {
         const x = leaf.x0 * canvas.width;
-        const y = leaf.z0 * canvas.height;
+        const y = (1 - leaf.z1) * canvas.height;
         const w = (leaf.x1 - leaf.x0) * canvas.width;
         const h = (leaf.z1 - leaf.z0) * canvas.height;
         ctx.fillStyle = leaf.id === selected ? '#cfe8ff' : '#e5e5e5';
@@ -69,7 +69,7 @@
 
     function pickLeaf(px, py) {
       const nx = px / canvas.width;
-      const nz = py / canvas.height;
+      const nz = 1 - (py / canvas.height);
       for (const leaf of leaves) {
         if (nx >= leaf.x0 && nx <= leaf.x1 && nz >= leaf.z0 && nz <= leaf.z1) {
           return leaf;

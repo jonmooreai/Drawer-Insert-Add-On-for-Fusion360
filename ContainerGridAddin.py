@@ -11,6 +11,7 @@ CMD_NAME = "Create Compartment Container"
 CMD_DESCRIPTION = "Generate a parameter-driven open-top compartment container."
 WORKSPACE_ID = "FusionSolidEnvironment"
 PANEL_ID = "SolidCreatePanel"
+DEFAULT_APPEARANCE_NAME = "PA 12 - PA 2200 - 120µm - Balance (with EOS 3D printers)"
 
 PALETTE_ID = "containerGridLayoutPalette"
 PALETTE_NAME = "Compartment Layout Editor"
@@ -26,6 +27,7 @@ DEFAULTS = {
     "bottomEdgeFilletEast": 3.0,
     "bottomEdgeFilletSouth": 3.0,
     "bottomEdgeFilletNorth": 3.0,
+    "verticalCompartmentEdgeFillet": 3.0,
 }
 
 _handlers = []
@@ -39,6 +41,32 @@ _custom_layout_applied = False
 
 def _to_mm(cm_value: float) -> float:
     return cm_value * 10.0
+
+
+def _find_appearance(app: adsk.core.Application, design: adsk.fusion.Design, appearance_name: str):
+    # Check document-level appearances first, then installed material libraries.
+    appearance = design.appearances.itemByName(appearance_name)
+    if appearance:
+        return appearance
+    libs = app.materialLibraries
+    for i in range(libs.count):
+        lib = libs.item(i)
+        if not lib:
+            continue
+        lib_appearance = lib.appearances.itemByName(appearance_name)
+        if lib_appearance:
+            return lib_appearance
+    return None
+
+
+def _apply_default_appearance(app: adsk.core.Application, design: adsk.fusion.Design, body: adsk.fusion.BRepBody):
+    try:
+        appearance = _find_appearance(app, design, DEFAULT_APPEARANCE_NAME)
+        if appearance:
+            body.appearance = appearance
+    except Exception:
+        # Keep build resilient if a specific local appearance is unavailable.
+        pass
 
 
 def _center_from_bbox(entity) -> adsk.core.Point3D:
@@ -133,6 +161,13 @@ def ensure_parameters(design, params):
     _upsert_param(design, "bottomEdgeFilletEast", f"{_to_mm(params['bottomEdgeFilletEast']):.3f} mm", "mm", "Bottom east edge fillet for all compartments.")
     _upsert_param(design, "bottomEdgeFilletSouth", f"{_to_mm(params['bottomEdgeFilletSouth']):.3f} mm", "mm", "Bottom south edge fillet for all compartments.")
     _upsert_param(design, "bottomEdgeFilletNorth", f"{_to_mm(params['bottomEdgeFilletNorth']):.3f} mm", "mm", "Bottom north edge fillet for all compartments.")
+    _upsert_param(
+        design,
+        "verticalCompartmentEdgeFillet",
+        f"{_to_mm(params['verticalCompartmentEdgeFillet']):.3f} mm",
+        "mm",
+        "Vertical edge fillet for all compartment walls.",
+    )
 
 
 def _leaf_dimensions(params: dict, leaf: dict):
@@ -198,6 +233,14 @@ def _validate_inputs(params, leaves):
             return "All bottom-edge fillets must be 0 or greater."
         if r > max_bottom:
             return f"Bottom-edge fillet ({_to_mm(r):.1f} mm) is too large for the smallest compartment ({_to_mm(max_bottom):.1f} mm max)."
+    vertical_radius = float(params["verticalCompartmentEdgeFillet"])
+    if vertical_radius < 0:
+        return "Vertical compartment edge fillet must be 0 or greater."
+    if vertical_radius > max_bottom:
+        return (
+            f"Vertical compartment edge fillet ({_to_mm(vertical_radius):.1f} mm) is too large for the smallest compartment "
+            f"({_to_mm(max_bottom):.1f} mm max)."
+        )
     return None
 
 
@@ -213,6 +256,7 @@ def _read_params_from_inputs(inputs):
         "bottomEdgeFilletEast": adsk.core.ValueCommandInput.cast(inputs.itemById("bottomEdgeFilletEast")).value,
         "bottomEdgeFilletSouth": adsk.core.ValueCommandInput.cast(inputs.itemById("bottomEdgeFilletSouth")).value,
         "bottomEdgeFilletNorth": adsk.core.ValueCommandInput.cast(inputs.itemById("bottomEdgeFilletNorth")).value,
+        "verticalCompartmentEdgeFillet": adsk.core.ValueCommandInput.cast(inputs.itemById("verticalCompartmentEdgeFillet")).value,
     }
 
 
@@ -470,8 +514,88 @@ def _collect_bottom_edge_groups(body, params, leaves):
     return groups
 
 
+def _collect_vertical_edge_groups(body, params, leaves):
+    radius = float(params["verticalCompartmentEdgeFillet"])
+    if radius <= 0:
+        return {}
+
+    wall = params["wallThickness"]
+    length = params["containerLength"]
+    depth = params["containerDepth"]
+    x_min = -length * 0.5 + wall
+    z_min = -depth * 0.5 + wall
+    interior_x = length - 2 * wall
+    interior_z = depth - 2 * wall
+
+    corner_points = set()
+    for leaf in leaves:
+        ax0, ax1, az0, az1 = _compartment_interior_bounds(
+            leaf, x_min, z_min, interior_x, interior_z, wall
+        )
+        corner_points.add((round(ax0, 8), round(az0, 8)))
+        corner_points.add((round(ax0, 8), round(az1, 8)))
+        corner_points.add((round(ax1, 8), round(az0, 8)))
+        corner_points.add((round(ax1, 8), round(az1, 8)))
+
+    if not corner_points:
+        return {}
+
+    pos_tol = max(0.01, wall * 0.6)
+    axis_tol = max(0.005, wall * 0.4)
+    min_vertical_len = max(0.1, wall * 0.5)
+
+    edge_collection = adsk.core.ObjectCollection.create()
+    for edge in body.edges:
+        ev = edge.evaluator
+        ok_range, p0, p1 = ev.getParameterExtents()
+        if not ok_range:
+            continue
+        ok_s, sp = ev.getPointAtParameter(p0)
+        ok_e, ep = ev.getPointAtParameter(p1)
+        if not ok_s or not ok_e:
+            continue
+        ok_m, mp = ev.getPointAtParameter((p0 + p1) * 0.5)
+        if not ok_m:
+            continue
+
+        dx = abs(ep.x - sp.x)
+        dy = abs(ep.y - sp.y)
+        dz = abs(ep.z - sp.z)
+
+        # Target only straight, mostly-vertical compartment corner edges.
+        if dx > axis_tol or dz > axis_tol or dy < min_vertical_len:
+            continue
+
+        px = round(mp.x, 8)
+        pz = round(mp.z, 8)
+        near_corner = False
+        for cx, cz in corner_points:
+            if abs(px - cx) <= pos_tol and abs(pz - cz) <= pos_tol:
+                near_corner = True
+                break
+        if not near_corner:
+            continue
+
+        edge_collection.add(edge)
+
+    if edge_collection.count == 0:
+        return {}
+    return {round(radius, 6): edge_collection}
+
+
+def _merge_edge_groups(base_groups, extra_groups):
+    for radius_key, extra_collection in extra_groups.items():
+        if radius_key not in base_groups:
+            base_groups[radius_key] = extra_collection
+            continue
+        base_collection = base_groups[radius_key]
+        for i in range(extra_collection.count):
+            base_collection.add(extra_collection.item(i))
+
+
 def apply_internal_fillets(comp, body, params, leaves):
     groups = _collect_bottom_edge_groups(body, params, leaves)
+    _merge_edge_groups(groups, _collect_vertical_edge_groups(body, params, leaves))
     if not groups:
         return
 
@@ -493,9 +617,11 @@ def apply_internal_fillets(comp, body, params, leaves):
 
 
 def build_container(design, params, leaves):
+    app = adsk.core.Application.get()
     comp = design.rootComponent
     body = _build_outer_shell(comp, params)
     body.name = APP_NAME
+    _apply_default_appearance(app, design, body)
     _build_divider_walls(comp, body, params, leaves)
     apply_internal_fillets(comp, body, params, leaves)
 
@@ -691,7 +817,8 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                 if btn and btn.value:
                     for dim_key in ("containerLength", "containerHeight", "containerDepth",
                                     "wallThickness", "bottomEdgeFilletWest", "bottomEdgeFilletEast",
-                                    "bottomEdgeFilletSouth", "bottomEdgeFilletNorth"):
+                                    "bottomEdgeFilletSouth", "bottomEdgeFilletNorth",
+                                    "verticalCompartmentEdgeFillet"):
                         inp = adsk.core.ValueCommandInput.cast(inputs.itemById(dim_key))
                         if inp:
                             inp.expression = f"{DEFAULTS[dim_key]} mm"
@@ -738,6 +865,7 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             default_bottom_east = adsk.core.ValueInput.createByString(f"{DEFAULTS['bottomEdgeFilletEast']} mm")
             default_bottom_south = adsk.core.ValueInput.createByString(f"{DEFAULTS['bottomEdgeFilletSouth']} mm")
             default_bottom_north = adsk.core.ValueInput.createByString(f"{DEFAULTS['bottomEdgeFilletNorth']} mm")
+            default_vertical_edges = adsk.core.ValueInput.createByString(f"{DEFAULTS['verticalCompartmentEdgeFillet']} mm")
 
             inputs.addValueInput("containerLength", "Length (X)", "mm", default_len)
             inputs.addValueInput("containerHeight", "Height (Y / Up)", "mm", default_height)
@@ -752,6 +880,7 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             fillet_inputs.addValueInput("bottomEdgeFilletEast", "Bottom East Edge", "mm", default_bottom_east)
             fillet_inputs.addValueInput("bottomEdgeFilletSouth", "Bottom South Edge", "mm", default_bottom_south)
             fillet_inputs.addValueInput("bottomEdgeFilletNorth", "Bottom North Edge", "mm", default_bottom_north)
+            fillet_inputs.addValueInput("verticalCompartmentEdgeFillet", "Vertical Compartment Edges", "mm", default_vertical_edges)
 
             inputs.addBoolValueInput("customLayout", "Custom Layout", False, "", False)
             inputs.addBoolValueInput("clearCustomLayout", "Clear Custom Layout", False, "", False)
