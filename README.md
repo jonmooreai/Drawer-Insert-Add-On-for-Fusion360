@@ -15,6 +15,14 @@ This add-in creates an open-top container centered on the origin with a bottom, 
 - Bottom edge fillets: per-side controls for each compartment (`North`, `South`, `East`, `West`)
 - Vertical edge fillet: one control for all compartment vertical edges (`3 mm` default)
 
+The default `Length`, `Height`, and `Depth` values are sized for the apothecary drawers from this cabinet: [Amazon apothecary cabinet](https://amzn.to/4lQDurP).
+
+## Reference Images
+
+![Apothecary cabinet](apothecary-drawers.jpg)
+
+![Drawers with printed inserts](drawers.jpeg)
+
 ## Orientation
 
 - Open side faces `+Y`
@@ -45,8 +53,8 @@ Install it, then sign in with your Autodesk account and open Fusion once.
 3. Open the **Add-Ins** tab.
 4. Click the **+** button (or **Add Existing/Add-Ins Folder**, depending on Fusion version).
 5. Select the folder that contains:
-   - `ContainerGridAddin.py`
-   - `ContainerGridAddin.manifest`
+  - `ContainerGridAddin.py`
+  - `ContainerGridAddin.manifest`
 6. Select the add-in and click **Run**.
 7. (Optional) Turn on **Run on Startup** so it loads automatically next time.
 
@@ -56,12 +64,12 @@ Install it, then sign in with your Autodesk account and open Fusion once.
 2. In the toolbar, open **Solid > Create**.
 3. Click **Create Compartment Container**.
 4. Enter basic values:
-   - Length (X): try `92 mm`
-   - Height (Y): try `60 mm`
-   - Depth (Z): try `72 mm`
-   - Rows: try `3`
-   - Columns: try `4`
-   - Wall thickness: try `2 mm`
+  - Length (X): try `92 mm`
+  - Height (Y): try `60 mm`
+  - Depth (Z): try `72 mm`
+  - Rows: try `3`
+  - Columns: try `4`
+  - Wall thickness: try `2 mm`
 5. Click **OK**.
 6. The container is created centered at the origin.
 
@@ -75,9 +83,9 @@ After you create your box in Fusion 360:
 2. Right-click the body.
 3. Click **Save as Mesh** (or **3D Print**, depending on Fusion version).
 4. Set:
-   - **Format**: `STL (Binary)`
-   - **Units**: `Millimeter`
-   - **Refinement**: `High` (or `Medium` for faster export)
+  - **Format**: `STL (Binary)`
+  - **Units**: `Millimeter`
+  - **Refinement**: `High` (or `Medium` for faster export)
 5. Choose a save location and click **OK/Export**.
 
 You now have an `.stl` file ready for slicing.
@@ -88,9 +96,9 @@ You now have an `.stl` file ready for slicing.
 2. Click **Open Project** or drag your `.stl` file into the build plate.
 3. Select your printer profile and filament profile.
 4. For a first print, common defaults are:
-   - Layer height: `0.20 mm`
-   - Infill: `15%` to `20%`
-   - Wall loops/perimeters: `3`
+  - Layer height: `0.20 mm`
+  - Infill: `15%` to `20%`
+  - Wall loops/perimeters: `3`
 5. Click **Slice Plate**.
 6. Preview layers to confirm the compartments and walls look correct.
 7. Click **Print Plate** (or export the sliced file) to send it to your printer.
@@ -144,4 +152,4 @@ Generation pipeline:
   - Implemented side-specific bottom fillets (`North`, `South`, `East`, `West`) and shared all-compartment controls in the layout editor.
   - Updated edge collection so all matching compartment bottom-edge segments are targeted for fillets.
   - Added a shared `Vertical Compartment Edges` fillet control (default `3 mm`).
-  - Added default body appearance assignment: `PA 12 - PA 2200 - 120µm - Balance (with EOS 3D printers)`.
+
