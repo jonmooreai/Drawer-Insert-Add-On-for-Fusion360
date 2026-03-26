@@ -1,0 +1,151 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Compartment Layout Editor</title>
+  <style>
+    body { font-family: -apple-system, Arial, sans-serif; margin: 12px; }
+    .row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+    button { padding: 6px 10px; }
+    #canvas { border: 1px solid #888; width: 360px; height: 360px; }
+    .hint { color: #666; font-size: 12px; margin-top: 8px; }
+    .card { border: 1px solid #ddd; border-radius: 6px; padding: 8px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="row">
+    <button id="splitV">Split Vertical</button>
+    <button id="splitH">Split Horizontal</button>
+  </div>
+
+  <canvas id="canvas" width="360" height="360"></canvas>
+
+  <div class="card">
+    <strong id="selectedLabel">Selected compartment: none</strong>
+  </div>
+
+  <div class="row" style="margin-top:10px;">
+    <button id="doneBtn">Done</button>
+    <button id="cancelBtn">Cancel</button>
+  </div>
+
+  <div class="hint">Click a compartment, then split it vertically or horizontally. Fillet values are set in the main command dialog.</div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let leaves = [];
+    let selected = null;
+    let nextId = 1;
+
+    function getSelectedLeaf() {
+      return leaves.find(l => l.id === selected) || null;
+    }
+
+    function updateLabel() {
+      const label = document.getElementById('selectedLabel');
+      const leaf = getSelectedLeaf();
+      label.textContent = leaf
+        ? 'Selected compartment: ' + leaf.id
+        : 'Selected compartment: none';
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#f6f6f6';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      for (const leaf of leaves) {
+        const x = leaf.x0 * canvas.width;
+        const y = leaf.z0 * canvas.height;
+        const w = (leaf.x1 - leaf.x0) * canvas.width;
+        const h = (leaf.z1 - leaf.z0) * canvas.height;
+        ctx.fillStyle = leaf.id === selected ? '#cfe8ff' : '#e5e5e5';
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = '#333';
+        ctx.strokeRect(x, y, w, h);
+      }
+    }
+
+    function pickLeaf(px, py) {
+      const nx = px / canvas.width;
+      const nz = py / canvas.height;
+      for (const leaf of leaves) {
+        if (nx >= leaf.x0 && nx <= leaf.x1 && nz >= leaf.z0 && nz <= leaf.z1) {
+          return leaf;
+        }
+      }
+      return null;
+    }
+
+    function splitSelected(axis) {
+      const idx = leaves.findIndex(l => l.id === selected);
+      if (idx < 0) return;
+      const leaf = leaves[idx];
+      if (axis === 'v') {
+        const mid = (leaf.x0 + leaf.x1) * 0.5;
+        if (mid <= leaf.x0 || mid >= leaf.x1) return;
+        leaves.splice(idx, 1,
+          { id: nextId++, x0: leaf.x0, x1: mid, z0: leaf.z0, z1: leaf.z1 },
+          { id: nextId++, x0: mid, x1: leaf.x1, z0: leaf.z0, z1: leaf.z1 }
+        );
+      } else {
+        const mid = (leaf.z0 + leaf.z1) * 0.5;
+        if (mid <= leaf.z0 || mid >= leaf.z1) return;
+        leaves.splice(idx, 1,
+          { id: nextId++, x0: leaf.x0, x1: leaf.x1, z0: leaf.z0, z1: mid },
+          { id: nextId++, x0: leaf.x0, x1: leaf.x1, z0: mid, z1: leaf.z1 }
+        );
+      }
+      selected = leaves[idx].id;
+      updateLabel();
+      sendLayoutChanged();
+      draw();
+    }
+
+    function send(action, data) {
+      if (window.adsk && window.adsk.fusionSendData) {
+        window.adsk.fusionSendData(action, JSON.stringify(data || {}));
+      }
+    }
+
+    function sendLayoutChanged() {
+      send('layoutChanged', { leaves });
+    }
+
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const leaf = pickLeaf(e.clientX - rect.left, e.clientY - rect.top);
+      if (!leaf) return;
+      selected = leaf.id;
+      updateLabel();
+      draw();
+    });
+
+    document.getElementById('splitV').addEventListener('click', () => splitSelected('v'));
+    document.getElementById('splitH').addEventListener('click', () => splitSelected('h'));
+    document.getElementById('doneBtn').addEventListener('click', () => send('done', {}));
+    document.getElementById('cancelBtn').addEventListener('click', () => send('cancel', {}));
+
+    window.fusionJavaScriptHandler = {
+      handle: function(action, data) {
+        if (action !== 'layout') return 'ok';
+        try {
+          const payload = JSON.parse(data);
+          if (payload && Array.isArray(payload.leaves)) {
+            leaves = payload.leaves.map(l => ({
+              id: l.id, x0: l.x0, x1: l.x1, z0: l.z0, z1: l.z1
+            }));
+            const maxId = leaves.reduce((m, l) => Math.max(m, l.id || 0), 0);
+            nextId = maxId + 1;
+            selected = leaves.length ? leaves[0].id : null;
+            updateLabel();
+            draw();
+          }
+        } catch (_) {}
+        return 'ok';
+      }
+    };
+  </script>
+</body>
+</html>
