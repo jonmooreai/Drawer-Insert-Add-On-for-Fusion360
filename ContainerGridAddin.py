@@ -11,7 +11,6 @@ CMD_NAME = "Create Compartment Container"
 CMD_DESCRIPTION = "Generate a parameter-driven open-top compartment container."
 WORKSPACE_ID = "FusionSolidEnvironment"
 PANEL_ID = "SolidCreatePanel"
-DEFAULT_APPEARANCE_NAME = "PA 12 - PA 2200 - 120µm - Balance (with EOS 3D printers)"
 
 PALETTE_ID = "containerGridLayoutPalette"
 PALETTE_NAME = "Compartment Layout Editor"
@@ -41,32 +40,6 @@ _custom_layout_applied = False
 
 def _to_mm(cm_value: float) -> float:
     return cm_value * 10.0
-
-
-def _find_appearance(app: adsk.core.Application, design: adsk.fusion.Design, appearance_name: str):
-    # Check document-level appearances first, then installed material libraries.
-    appearance = design.appearances.itemByName(appearance_name)
-    if appearance:
-        return appearance
-    libs = app.materialLibraries
-    for i in range(libs.count):
-        lib = libs.item(i)
-        if not lib:
-            continue
-        lib_appearance = lib.appearances.itemByName(appearance_name)
-        if lib_appearance:
-            return lib_appearance
-    return None
-
-
-def _apply_default_appearance(app: adsk.core.Application, design: adsk.fusion.Design, body: adsk.fusion.BRepBody):
-    try:
-        appearance = _find_appearance(app, design, DEFAULT_APPEARANCE_NAME)
-        if appearance:
-            body.appearance = appearance
-    except Exception:
-        # Keep build resilient if a specific local appearance is unavailable.
-        pass
 
 
 def _center_from_bbox(entity) -> adsk.core.Point3D:
@@ -617,11 +590,9 @@ def apply_internal_fillets(comp, body, params, leaves):
 
 
 def build_container(design, params, leaves):
-    app = adsk.core.Application.get()
     comp = design.rootComponent
     body = _build_outer_shell(comp, params)
     body.name = APP_NAME
-    _apply_default_appearance(app, design, body)
     _build_divider_walls(comp, body, params, leaves)
     apply_internal_fillets(comp, body, params, leaves)
 

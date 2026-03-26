@@ -1,5 +1,7 @@
 # Fusion 360 Container Grid Add-In
 
+![Fusion 360 add-on preview](add-on.png)
+
 This add-in creates an open-top container centered on the origin with a bottom, parameterized wall thickness, compartment grid dividers, and internal fillets.
 
 ## Default Geometry
