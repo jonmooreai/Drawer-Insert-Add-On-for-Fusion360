@@ -15,7 +15,7 @@ This add-in creates an open-top container centered on the origin with a bottom, 
 - Bottom edge fillets: per-side controls for each compartment (`North`, `South`, `East`, `West`)
 - Vertical edge fillet: one control for all compartment vertical edges (`3 mm` default)
 
-The default `Length`, `Height`, and `Depth` values are sized for the apothecary drawers from this cabinet: [Amazon apothecary cabinet](https://amzn.to/4lQDurP).
+The default `Length`, `Height`, and `Depth` values are sized for the apothecary drawers from this cabinet: [Amazon apothecary cabinet](https://amzn.to/4lQDurP) *(affiliate link)*.
 
 ## Orientation
 
